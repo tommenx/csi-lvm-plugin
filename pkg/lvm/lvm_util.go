@@ -1,6 +1,7 @@
 package lvm
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"os/exec"
@@ -25,6 +26,20 @@ type lvmVolume struct {
 	VolSize     int64
 }
 
+type NodeLVMInfo struct {
+	Report []struct {
+		Vg []struct {
+			VgName    string `json:"vg_name"`
+			PvCount   string `json:"pv_count"`
+			LvCount   string `json:"lv_count"`
+			SnapCount string `json:"snap_count"`
+			VgAttr    string `json:"vg_attr"`
+			VgSize    string `json:"vg_size"`
+			VgFree    string `json:"vg_free"`
+		} `json:"vg"`
+	} `json:"report"`
+}
+
 // TODO
 // Write to the /etc/fstab to avoid host restart
 func createLVMDevice(lvm *lvmVolume) error {
@@ -40,7 +55,7 @@ func createLVMDevice(lvm *lvmVolume) error {
 	}
 	volSz := fmt.Sprintf("%d%s", sz, sz_unit)
 	// output, err := execCommand("lvcreate", []string{"-L", volSz, "-n", lvm.VolName, lvm.VolumeGroup})
-	output, err := testConfig("lvcreate", []string{"-L", volSz, lvm.VolumeGroup})
+	output, err := execCommand("lvcreate", []string{"-L", volSz, lvm.VolumeGroup})
 	if err != nil {
 		glog.Errorf("%v failed to create lvm,output: %s", err, string(output))
 		return err
@@ -57,8 +72,8 @@ func createLVMDevice(lvm *lvmVolume) error {
 func deleteLVMDevice(lvm *lvmVolume) error {
 	glog.V(4).Infof("lvm: delete % in %s ", lvm.VolName, lvm.VolumeGroup)
 	args := []string{"-y", lvm.MapperPath}
-	// out, err := execCommand("lvremove", args)
-	out, err := testConfig("lvremove", args)
+	out, err := execCommand("lvremove", args)
+	// out, err := testConfig("lvremove", args)
 	if err != nil {
 		glog.Errorf("%v failed to remove lvm, output: %s", err, string(out))
 	}
@@ -93,4 +108,41 @@ func testConfig(cmd string, args []string) ([]byte, error) {
 	}
 	fmt.Println(cmd)
 	return []byte(`Logical volume "lvol1" created.`), nil
+}
+
+// TODO
+// get all vg in the node
+// vg pv lv vgsize vgfree
+
+func getNodeInfo() (*NodeLVMInfo, error) {
+	node := &NodeLVMInfo{}
+	args := []string{"--columns", "--reportformat", "json"}
+	out, err := execCommand("vgdisplay", args)
+	// out := []byte(`{
+	// 	"report": [
+	// 		{
+	// 			"vg": [
+	// 				{"vg_name":"centos", "pv_count":"1", "lv_count":"3", "snap_count":"0", "vg_attr":"wz--n-", "vg_size":"231.88g", "vg_free":"4.00m"},
+	// 				{"vg_name":"dock", "pv_count":"1", "lv_count":"1", "snap_count":"0", "vg_attr":"wz--n-", "vg_size":"<100.00g", "vg_free":"<90.00g"},
+	// 				{"vg_name":"vgdata", "pv_count":"2", "lv_count":"1", "snap_count":"0", "vg_attr":"wz--n-", "vg_size":"381.46g", "vg_free":"379.46g"}
+	// 			]
+	// 		}
+	// 	]
+	// }`)
+	// var err error
+	// err = nil
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(out, node)
+	if err != nil {
+		return nil, err
+	}
+	for i := range node.Report[0].Vg {
+		if node.Report[0].Vg[i].VgName == "centos" {
+			node.Report[0].Vg = append(node.Report[0].Vg[:i], node.Report[0].Vg[i+1:]...)
+			break
+		}
+	}
+	return node, nil
 }

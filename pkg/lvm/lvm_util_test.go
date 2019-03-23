@@ -44,5 +44,9 @@ func TestDeleteLVMDevice(t *testing.T) {
 	lvm.LvmName = "lov1"
 	lvm.MapperPath = "/dev/mapper/vgdata-lov1"
 	deleteLVMDevice(lvm)
+}
 
+func TestGetNodeInfo(t *testing.T) {
+	node, _ := getNodeInfo()
+	fmt.Printf("%v", node)
 }
