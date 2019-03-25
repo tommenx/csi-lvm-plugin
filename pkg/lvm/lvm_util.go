@@ -17,13 +17,17 @@ const (
 
 // using auto lvm name
 type lvmVolume struct {
-	VolName     string
-	LvmName     string
-	VolID       string
-	DevicePath  string
-	MapperPath  string
-	VolumeGroup string
-	VolSize     int64
+	VolName     string `json:"vol_name"`
+	LvmName     string `json:"lvm_name"`
+	VolID       string `json:"vol_id"`
+	DevicePath  string `json:"device_path"`
+	MapperPath  string `json:"mapper_path"`
+	VolumeGroup string `json:"volume_group"`
+	VolSize     int64  `json:"volume_size"`
+}
+
+type AllocationsLVM struct {
+	Allocation []lvmVolume `json:"allocation"`
 }
 
 type NodeLVMInfo struct {
@@ -118,19 +122,6 @@ func GetNodeInfo() (*NodeLVMInfo, error) {
 	node := &NodeLVMInfo{}
 	args := []string{"--columns", "--reportformat", "json"}
 	out, err := execCommand("vgdisplay", args)
-	// out := []byte(`{
-	// 	"report": [
-	// 		{
-	// 			"vg": [
-	// 				{"vg_name":"centos", "pv_count":"1", "lv_count":"3", "snap_count":"0", "vg_attr":"wz--n-", "vg_size":"231.88g", "vg_free":"4.00m"},
-	// 				{"vg_name":"dock", "pv_count":"1", "lv_count":"1", "snap_count":"0", "vg_attr":"wz--n-", "vg_size":"<100.00g", "vg_free":"<90.00g"},
-	// 				{"vg_name":"vgdata", "pv_count":"2", "lv_count":"1", "snap_count":"0", "vg_attr":"wz--n-", "vg_size":"381.46g", "vg_free":"379.46g"}
-	// 			]
-	// 		}
-	// 	]
-	// }`)
-	// var err error
-	// err = nil
 	if err != nil {
 		return nil, err
 	}

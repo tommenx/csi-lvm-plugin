@@ -1,4 +1,4 @@
-package util
+package lvm
 
 import (
 	"encoding/json"
@@ -112,6 +112,7 @@ func (cache *ConfigCache) Create(data interface{}) error {
 		Data: map[string]string{},
 	}
 	cm.Data["node"] = string(jsonStr)
+	cm.Data["allocation"] = ""
 	_, err = cache.Client.CoreV1().ConfigMaps(cache.Namespace).Create(cm)
 	if err != nil {
 		return fmt.Errorf("configmap create error %v", err)
@@ -119,7 +120,7 @@ func (cache *ConfigCache) Create(data interface{}) error {
 	return nil
 }
 
-// update config map
+// update node info of config map
 func (cache *ConfigCache) Update(data interface{}) error {
 	identifier := fmt.Sprintf("csi-lvm-%s", cache.NodeID)
 	cm, err := cache.Get()
@@ -132,7 +133,12 @@ func (cache *ConfigCache) Update(data interface{}) error {
 		glog.Errorf("Configmap convert to JSON error,%v", err)
 		return err
 	}
-	cm.Data["node"] = string(jsonStr)
+	if _, ok := data.(NodeLVMInfo); ok {
+		cm.Data["node"] = string(jsonStr)
+	}
+	if _, ok := data.(AllocationsLVM); ok {
+		cm.Data["allocation"] = string(jsonStr)
+	}
 	_, err = cache.Client.CoreV1().ConfigMaps(cache.Namespace).Update(cm)
 	if err != nil {
 		glog.Error("Configmap create error")

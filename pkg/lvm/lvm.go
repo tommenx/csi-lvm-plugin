@@ -4,7 +4,6 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/golang/glog"
 	csicommon "github.com/kubernetes-csi/drivers/pkg/csi-common"
-	"github.com/tommenx/csi-lvm-plugin/pkg/util"
 )
 
 const (
@@ -23,7 +22,7 @@ type lvm struct {
 	cscap            []*csi.ControllerServiceCapability
 }
 
-func NewDriver(nodeID, endpoint string, cache *util.ConfigCache) *lvm {
+func NewDriver(nodeID, endpoint string, cache *ConfigCache) *lvm {
 	tmplvm := &lvm{}
 	tmplvm.endpoint = endpoint
 	if nodeID == "" {

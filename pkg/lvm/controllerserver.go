@@ -5,7 +5,6 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/pborman/uuid"
-	"github.com/tommenx/csi-lvm-plugin/pkg/util"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -15,12 +14,20 @@ import (
 
 type controllerServer struct {
 	*csicommon.DefaultControllerServer
-	k8sCache *util.ConfigCache
+	k8sCache *ConfigCache
 }
 
 var lvmVolumes = make(map[string]*lvmVolume)
 
-func NewControllerServer(d *csicommon.CSIDriver, cache *util.ConfigCache) csi.ControllerServer {
+func transVolumes2Allocation() *AllocationsLVM {
+	allocation := &AllocationsLVM{}
+	for _, v := range lvmVolumes {
+		allocation.Allocation = append(allocation.Allocation, *v)
+	}
+	return allocation
+}
+
+func NewControllerServer(d *csicommon.CSIDriver, cache *ConfigCache) csi.ControllerServer {
 	c := &controllerServer{
 		DefaultControllerServer: csicommon.NewDefaultControllerServer(d),
 		k8sCache:                cache,
@@ -81,10 +88,16 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		return nil, err
 	}
 	lvmVolumes[lvmVol.VolID] = lvmVol
+
 	node, _ := GetNodeInfo()
 	err = cs.k8sCache.Update(node)
 	if err != nil {
-		glog.Errorf("ControllerServer: can't update configmap")
+		glog.Errorf("ControllerServer: can't update configmap of node")
+	}
+	allocation := transVolumes2Allocation()
+	err = cs.k8sCache.Update(allocation)
+	if err != nil {
+		glog.Errorf("ControllerServer: can't update configmap of allocation")
 	}
 	return &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
@@ -121,6 +134,11 @@ func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 	err = cs.k8sCache.Update(node)
 	if err != nil {
 		glog.Errorf("ControllerServer: can't update configmap")
+	}
+	allocation := transVolumes2Allocation()
+	err = cs.k8sCache.Update(allocation)
+	if err != nil {
+		glog.Errorf("ControllerServer: can't update configmap of allocation")
 	}
 	// return result
 	return &csi.DeleteVolumeResponse{}, nil
