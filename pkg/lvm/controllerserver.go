@@ -5,6 +5,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/pborman/uuid"
+	"github.com/tommenx/csi-lvm-plugin/pkg/util"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -14,13 +15,15 @@ import (
 
 type controllerServer struct {
 	*csicommon.DefaultControllerServer
+	k8sCache *util.ConfigCache
 }
 
 var lvmVolumes = make(map[string]*lvmVolume)
 
-func NewControllerServer(d *csicommon.CSIDriver) csi.ControllerServer {
+func NewControllerServer(d *csicommon.CSIDriver, cache *util.ConfigCache) csi.ControllerServer {
 	c := &controllerServer{
 		DefaultControllerServer: csicommon.NewDefaultControllerServer(d),
+		k8sCache:                cache,
 	}
 	return c
 }
@@ -78,6 +81,11 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		return nil, err
 	}
 	lvmVolumes[lvmVol.VolID] = lvmVol
+	node, _ := GetNodeInfo()
+	err = cs.k8sCache.Update(node)
+	if err != nil {
+		glog.Errorf("ControllerServer: can't update configmap")
+	}
 	return &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
 			VolumeId:      lvmVol.VolID,
@@ -108,6 +116,12 @@ func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 	}
 	// remove from the map
 	delete(lvmVolumes, req.GetVolumeId())
+	// update configmap
+	node, _ := GetNodeInfo()
+	err = cs.k8sCache.Update(node)
+	if err != nil {
+		glog.Errorf("ControllerServer: can't update configmap")
+	}
 	// return result
 	return &csi.DeleteVolumeResponse{}, nil
 }

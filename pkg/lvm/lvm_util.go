@@ -114,7 +114,7 @@ func testConfig(cmd string, args []string) ([]byte, error) {
 // get all vg in the node
 // vg pv lv vgsize vgfree
 
-func getNodeInfo() (*NodeLVMInfo, error) {
+func GetNodeInfo() (*NodeLVMInfo, error) {
 	node := &NodeLVMInfo{}
 	args := []string{"--columns", "--reportformat", "json"}
 	out, err := execCommand("vgdisplay", args)

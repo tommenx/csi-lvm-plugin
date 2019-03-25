@@ -23,8 +23,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/golang/glog"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/tommenx/csi-lvm-plugin/pkg/lvm"
+	"github.com/tommenx/csi-lvm-plugin/pkg/util"
 )
 
 func init() {
@@ -51,9 +54,17 @@ func main() {
 	flag.Parse()
 	drivername := "lvmplugin.csi.alibabacloud.com"
 	log.Infof("CSI Driver: ", drivername, *nodeId, *endpoint)
-	driver := lvm.NewDriver(*nodeId, *endpoint)
+	k8sCache := util.NewConfigCache()
+	driver := lvm.NewDriver(*nodeId, *endpoint, k8sCache)
+	lvmNodeInfo, err := lvm.GetNodeInfo()
+	if err != nil {
+		glog.Error("can't get node info ")
+	}
+	err = k8sCache.Create(lvmNodeInfo)
+	if err != nil {
+		glog.Errorf("can't create configmap")
+	}
 	driver.Run()
-
 	os.Exit(0)
 }
 
