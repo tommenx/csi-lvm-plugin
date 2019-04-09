@@ -133,10 +133,10 @@ func (cache *ConfigCache) Update(data interface{}) error {
 		glog.Errorf("Configmap convert to JSON error,%v", err)
 		return err
 	}
-	if _, ok := data.(NodeLVMInfo); ok {
+	switch data.(type) {
+	case NodeLVMInfo:
 		cm.Data["node"] = string(jsonStr)
-	}
-	if _, ok := data.(AllocationsLVM); ok {
+	case AllocationsLVM:
 		cm.Data["allocation"] = string(jsonStr)
 	}
 	_, err = cache.Client.CoreV1().ConfigMaps(cache.Namespace).Update(cm)

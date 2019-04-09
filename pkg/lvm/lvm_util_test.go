@@ -47,6 +47,16 @@ func TestDeleteLVMDevice(t *testing.T) {
 }
 
 func TestGetNodeInfo(t *testing.T) {
-	node, _ := getNodeInfo()
+	node, _ := GetNodeInfo()
 	fmt.Printf("%v", node)
+}
+
+func TestGetDeviceNum(t *testing.T) {
+	lvm := &lvmVolume{}
+	lvm.VolumeGroup = "vgdata"
+	lvm.VolName = "vol5"
+	ok, maj, min := getDeviceNum(lvm)
+	if ok {
+		fmt.Printf("maj:%s,min:%s", maj, min)
+	}
 }

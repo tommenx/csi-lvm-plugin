@@ -19,8 +19,8 @@ type controllerServer struct {
 
 var lvmVolumes = make(map[string]*lvmVolume)
 
-func transVolumes2Allocation() *AllocationsLVM {
-	allocation := &AllocationsLVM{}
+func transVolumes2Allocation() AllocationsLVM {
+	allocation := AllocationsLVM{}
 	for _, v := range lvmVolumes {
 		allocation.Allocation = append(allocation.Allocation, *v)
 	}
@@ -49,16 +49,18 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		glog.Errorf("CreateVolume: Volume Capabilities cannot be empty")
 		return nil, status.Error(codes.InvalidArgument, "Volume Capabilities cannot be empty")
 	}
-	// if req.GetCapacityRange() == nil {
-	// 	glog.Errorf("CreateVolume: error Capacity from input")
-	// 	return nil, status.Error(codes.InvalidArgument, "CreateVolume: error Capacity from input")
-	// }
 
 	if _, ok := req.GetParameters()["vg"]; !ok {
 		glog.Errorf("CreateVolume: error VolumeGroup from input")
 		return nil, status.Error(codes.InvalidArgument, "CreateVolume: error VolumeGroup from input")
 	}
 	lvmVol := &lvmVolume{}
+	// if bps is null , it is set to nil
+	if bps, ok := req.GetParameters()["bps"]; ok {
+		lvmVol.Bps = bps
+	} else {
+		lvmVol.Bps = "0"
+	}
 	lvmVol.VolName = req.Name
 	if req.GetCapacityRange() != nil {
 		lvmVol.VolSize = int64(req.GetCapacityRange().GetRequiredBytes())
@@ -69,7 +71,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	vol, _ := getLVMVolumeByName(req.Name)
 	if vol != nil {
 		if vol.VolSize != lvmVol.VolSize {
-			glog.Errorf("CreateVolume: exist disk %s size is different with requested for disk: exist size: %s, request size: %s", req.GetName(), vol.VolSize, lvmVol.VolSize)
+			// glog.V(4).Infof("CreateVolume: exist disk %s size is different with requested for disk: exist size: %s, request size: %s", req.GetName(), vol.VolSize, lvmVol.VolSize)
 			return nil, status.Errorf(codes.Internal, "disk %s size is different with requested for disk", req.GetName())
 		} else {
 			tmpVol := &csi.Volume{
@@ -87,6 +89,16 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	if err != nil {
 		return nil, err
 	}
+	// set bps
+	ok, maj, min := getDeviceNum(lvmVol)
+	if !ok {
+		glog.V(4).Infoln("ControllerServer:can't get device number")
+	} else {
+		lvmVol.Maj = maj
+		lvmVol.Min = min
+	}
+	setBps(lvmVol)
+	// add to lvmvolume slice
 	lvmVolumes[lvmVol.VolID] = lvmVol
 
 	node, _ := GetNodeInfo()
@@ -95,6 +107,9 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		glog.Errorf("ControllerServer: can't update configmap of node")
 	}
 	allocation := transVolumes2Allocation()
+	for _, v := range allocation.Allocation {
+		glog.V(4).Infof("%v", v)
+	}
 	err = cs.k8sCache.Update(allocation)
 	if err != nil {
 		glog.Errorf("ControllerServer: can't update configmap of allocation")
@@ -109,7 +124,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 }
 
 func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
-	glog.V(4).Infof("DeleteVolumes: Starting delete volume %s", req.GetVolumeId)
+	glog.V(4).Infof("DeleteVolumes: Starting delete volume %s", req.GetVolumeId())
 	// check inputs
 	if err := cs.Driver.ValidateControllerServiceRequest(csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME); err != nil {
 		glog.Errorf("DeleteVolume: Invaild delete volume args %v", err)
@@ -118,8 +133,8 @@ func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 	// find lvmVol from lvmVols
 	vol, ok := lvmVolumes[req.VolumeId]
 	if !ok {
-		glog.Errorf("DeleteVolume: Can't find the request volumeId %s", req.VolumeId)
-		return nil, status.Errorf(codes.Internal, "DeleteVolume: can't find request VolumeId %s", req.VolumeId)
+		glog.V(4).Infof("DeleteVolume: Can't find the request volumeId %s", req.VolumeId)
+		return &csi.DeleteVolumeResponse{}, nil
 	}
 	// remove the request lv
 	err := deleteLVMDevice(vol)

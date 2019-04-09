@@ -23,6 +23,9 @@ type lvmVolume struct {
 	DevicePath  string `json:"device_path"`
 	MapperPath  string `json:"mapper_path"`
 	VolumeGroup string `json:"volume_group"`
+	Maj         string `json:"maj"`
+	Min         string `json:"min"`
+	Bps         string `json:"bps"`
 	VolSize     int64  `json:"volume_size"`
 }
 
@@ -65,6 +68,10 @@ func createLVMDevice(lvm *lvmVolume) error {
 		return err
 	}
 	lvm.LvmName = extractLVMName(string(output))
+	if ok, maj, min := getDeviceNum(lvm); ok {
+		lvm.Maj = maj
+		lvm.Min = min
+	}
 	lvm.DevicePath = fmt.Sprintf("/dev/%s/%s", lvm.VolumeGroup, lvm.LvmName)
 	lvm.MapperPath = fmt.Sprintf("/dev/mapper/%s-%s", lvm.VolumeGroup, lvm.LvmName)
 	glog.V(4).Infof("success create lvm [%s] in vg [%s] with the path %s", lvm.LvmName, lvm.VolumeGroup, lvm.MapperPath)
@@ -74,7 +81,7 @@ func createLVMDevice(lvm *lvmVolume) error {
 //TODO
 // update the /etc/fstab
 func deleteLVMDevice(lvm *lvmVolume) error {
-	glog.V(4).Infof("lvm: delete % in %s ", lvm.VolName, lvm.VolumeGroup)
+	glog.V(4).Infof("lvm: delete %s in %s ", lvm.VolName, lvm.VolumeGroup)
 	args := []string{"-y", lvm.MapperPath}
 	out, err := execCommand("lvremove", args)
 	// out, err := testConfig("lvremove", args)
@@ -136,4 +143,37 @@ func GetNodeInfo() (*NodeLVMInfo, error) {
 		}
 	}
 	return node, nil
+}
+
+func getDeviceNum(lvm *lvmVolume) (bool, string, string) {
+	label := fmt.Sprintf("%s-%s", lvm.VolumeGroup, lvm.LvmName)
+	args := []string{"--output", "NAME,MAJ:MIN", "| grep", label, "|awk '{print $NF}'"}
+	out, err := execCommand("lsblk", args)
+	if err != nil {
+		return false, "", ""
+	}
+	if len(out) == 0 {
+		return false, "", ""
+	}
+	strs := strings.Split(string(out), ":")
+	return true, strs[0], strs[1]
+}
+
+func setBps(lvm *lvmVolume) error {
+	cgpath := fmt.Sprintf("/sys/fs/cgroup/blkio/csi-lvm/%s/", lvm.VolName)
+	args1 := []string{"-p", cgpath}
+	_, err := execCommand("mkdir", args1)
+	if err != nil {
+		return err
+	}
+	// set the bps
+	str := fmt.Sprintf(`“%s:%s %s”`, lvm.Maj, lvm.Min, lvm.Bps)
+	writePath := cgpath + "blkio.throttle.read_bps_device"
+	// readPath := cgpath + "blkio.throttle.write_bps_device"
+	args2 := []string{str, ">", writePath}
+	_, err = execCommand("echo", args2)
+	if err != nil {
+		return err
+	}
+	return nil
 }
