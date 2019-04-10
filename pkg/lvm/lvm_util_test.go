@@ -54,7 +54,7 @@ func TestGetNodeInfo(t *testing.T) {
 func TestGetDeviceNum(t *testing.T) {
 	lvm := &lvmVolume{}
 	lvm.VolumeGroup = "vgdata"
-	lvm.VolName = "vol5"
+	lvm.LvmName = "vol5"
 	ok, maj, min := getDeviceNum(lvm)
 	if ok {
 		fmt.Printf("maj:%s,min:%s", maj, min)

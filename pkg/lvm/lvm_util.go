@@ -147,15 +147,23 @@ func GetNodeInfo() (*NodeLVMInfo, error) {
 
 func getDeviceNum(lvm *lvmVolume) (bool, string, string) {
 	label := fmt.Sprintf("%s-%s", lvm.VolumeGroup, lvm.LvmName)
-	args := []string{"--output", "NAME,MAJ:MIN", "| grep", label, "|awk '{print $NF}'"}
+	args := []string{`--output`, `NAME,MAJ:MIN`}
 	out, err := execCommand("lsblk", args)
+	lines := strings.Split(string(out), "\n")
+	var dn string
+	for _, line := range lines {
+		if ok := strings.Contains(line, label); ok {
+			cols := strings.Split(strings.Trim(line, " "), " ")
+			dn = cols[len(cols)-1]
+		}
+	}
 	if err != nil {
 		return false, "", ""
 	}
-	if len(out) == 0 {
+	if len(dn) == 0 {
 		return false, "", ""
 	}
-	strs := strings.Split(string(out), ":")
+	strs := strings.Split(dn, ":")
 	return true, strs[0], strs[1]
 }
 
@@ -167,12 +175,16 @@ func setBps(lvm *lvmVolume) error {
 		return err
 	}
 	// set the bps
-	str := fmt.Sprintf(`“%s:%s %s”`, lvm.Maj, lvm.Min, lvm.Bps)
-	writePath := cgpath + "blkio.throttle.read_bps_device"
-	// readPath := cgpath + "blkio.throttle.write_bps_device"
-	args2 := []string{str, ">", writePath}
-	_, err = execCommand("echo", args2)
+	str := fmt.Sprintf(`"%s:%s %s"`, lvm.Maj, lvm.Min, lvm.Bps)
+	writePath := cgpath + "blkio.throttle.write_bps_device"
+	com := fmt.Sprintf(`echo "%s" > %s`, str, writePath)
+	cmd := exec.Command("bash", "-c", com)
+	fmt.Println("command is", com)
+	cmd.Start()
+	err = cmd.Wait()
 	if err != nil {
+		fmt.Printf("error:%v", err)
+		glog.V(4).Infof("SET BPS echo error , %v", err)
 		return err
 	}
 	return nil
