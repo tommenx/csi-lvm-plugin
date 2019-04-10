@@ -162,3 +162,8 @@ func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *cs
 	glog.V(4).Infof("ControllerPublishVolume is called, do nothing by now")
 	return &csi.ControllerPublishVolumeResponse{}, nil
 }
+
+func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
+	glog.V(4).Infof("ControllerUnpublishVolume is called, do nothing by now")
+	return &csi.ControllerUnpublishVolumeResponse{}, nil
+}
