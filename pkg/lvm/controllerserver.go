@@ -2,6 +2,7 @@ package lvm
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/golang/glog"
 	"github.com/pborman/uuid"
@@ -159,11 +160,46 @@ func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 	return &csi.DeleteVolumeResponse{}, nil
 }
 func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *csi.ControllerPublishVolumeRequest) (*csi.ControllerPublishVolumeResponse, error) {
-	glog.V(4).Infof("ControllerPublishVolume is called, do nothing by now")
+	// step 1 check the volume id
+	// step 2 if exist,return
+	// step 3 if not,create lvmVolume,add to lvmVolumes
+
+	// volumeId == volName
+	// do not specify volSize
+	volumeId := req.GetVolumeId()
+	_, ok := lvmVolumes[volumeId]
+	if ok {
+		return &csi.ControllerPublishVolumeResponse{}, nil
+	}
+	params := req.GetVolumeContext()
+	lvm := &lvmVolume{}
+	if len(params["maj"]) == 0 || len(params["min"]) == 0 {
+		glog.Errorf("ControllerPublishVolume:%s don't have maj or min", volumeId)
+		return nil, status.Errorf(codes.Internal, "ControllerPublishVolume:%s don't have maj or min", volumeId)
+	}
+	if len(params["vg"]) == 0 {
+		glog.Errorf("ControllerPublishVolume:%s don't have volumegroup", volumeId)
+		return nil, status.Errorf(codes.Internal, "ControllerPublishVolume:%s don't have volumegroup", volumeId)
+	}
+	lvm.VolumeGroup = params["vg"]
+	lvm.Maj = params["maj"]
+	lvm.Min = params["min"]
+	if len(params["bps"]) == 0 {
+		lvm.Bps = "0"
+	} else {
+		lvm.Bps = params["bps"]
+	}
+	lvm.LvmName = volumeId
+	lvm.VolID = volumeId
+	lvm.DevicePath = fmt.Sprintf("/dev/%s/%s", lvm.VolumeGroup, lvm.LvmName)
+	lvm.MapperPath = fmt.Sprintf("/dev/mapper/%s-%s", lvm.VolumeGroup, lvm.LvmName)
+	lvmVolumes[lvm.VolID] = lvm
 	return &csi.ControllerPublishVolumeResponse{}, nil
+
 }
 
 func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
-	glog.V(4).Infof("ControllerUnpublishVolume is called, do nothing by now")
+	// glog.V(4).Infof("ControllerUnpublishVolume is called, do nothing by now")
+
 	return &csi.ControllerUnpublishVolumeResponse{}, nil
 }
