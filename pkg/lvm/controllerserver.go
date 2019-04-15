@@ -200,6 +200,12 @@ func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *cs
 
 func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
 	// glog.V(4).Infof("ControllerUnpublishVolume is called, do nothing by now")
-
+	volumeId := req.GetVolumeId()
+	vol, ok := lvmVolumes[volumeId]
+	if ok {
+		if vol.VolSize == 0 {
+			delete(lvmVolumes, volumeId)
+		}
+	}
 	return &csi.ControllerUnpublishVolumeResponse{}, nil
 }
