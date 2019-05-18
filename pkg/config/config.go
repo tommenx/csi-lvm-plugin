@@ -20,7 +20,7 @@ type Coordinator struct {
 type Resouce struct {
 	Type string `toml:"type"`
 	Kind string `toml:"kind"`
-	Size int    `toml:"size"`
+	Size int64  `toml:"size"`
 	Unit string `toml:"unit"`
 }
 

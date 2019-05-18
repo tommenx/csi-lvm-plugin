@@ -1,0 +1,49 @@
+[[disk]]
+name = "ssd1"
+level = "ssd"
+[[disk.resource]]
+type = "storage"
+kind = "space"
+size = 1000
+unit = "GB"
+[[disk.resource]]
+type = "limit"
+kind = "throttle.read_bps_device"
+size = 200
+unit = "MB"
+[[disk.resource]]
+type = "limit"
+kind = "throttle.write_bps_device"
+size = 100
+unit = "MB"
+
+[[disk]]
+name = "hdd1"
+level = "hdd"
+[[disk.resource]]
+type = "storage"
+kind = "space"
+size = 2000
+unit = "GB"
+[[disk.resource]]
+type = "limit"
+kind = "throttle.read_bps_device"
+size = 100
+unit = "MB"
+[[disk.resource]]
+type = "limit"
+kind = "throttle.write_bps_device"
+size = 50
+unit = "MB"
+
+[[etcd]]
+ip = "127.0.0.1"
+port = "2379"
+
+[local]
+ip = "127.0.0.1"
+port = "50051"
+
+[coordinator]
+ip = "127.0.0.1"
+port = "50052"

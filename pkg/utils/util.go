@@ -1,6 +1,10 @@
 package utils
 
-import ecpb "github.com/tommenx/pvproto/pkg/proto/executorpb"
+import (
+	"github.com/tommenx/csi-lvm-plugin/pkg/config"
+	cdpb "github.com/tommenx/pvproto/pkg/proto/coordinatorpb"
+	ecpb "github.com/tommenx/pvproto/pkg/proto/executorpb"
+)
 
 func ToCount(num int64, unit ecpb.Unit) int64 {
 	var KB, MB, GB int64
@@ -17,4 +21,69 @@ func ToCount(num int64, unit ecpb.Unit) int64 {
 		return num * GB
 	}
 	return 0
+}
+
+// func ToRPCNode(node *resource.Node) *cdpb.Node {
+// 	rspNode := &cdpb.Node{Name: node.Name}
+// 	for _, s := range node.Storages {
+// 		rspStorage := &cdpb.Storage{
+// 			Name:  s.Name,
+// 			Level: resource.ReLeval[s.Level],
+// 		}
+// 		for _, r := range s.Resources {
+// 			rspResouce := &cdpb.Resource{
+// 				Type: resource.ReType[r.Type],
+// 				Kind: r.Kind,
+// 				Size: r.Size,
+// 				Unit: resource.ReUnit[r.Unit],
+// 			}
+// 			rspStorage.Resource = append(rspStorage.Resource, rspResouce)
+// 		}
+// 		rspNode.Storage = append(rspNode.Storage, rspStorage)
+// 	}
+// 	return rspNode
+// }
+
+func ToRPCNode(nodeId string, disks []*config.Disk) *cdpb.Node {
+	storages := []*cdpb.Storage{}
+	for _, disk := range disks {
+		resources := []*cdpb.Resource{}
+		for _, resource := range disk.Resouce {
+			resources = append(resources, &cdpb.Resource{
+				Type: Type[resource.Type],
+				Kind: resource.Kind,
+				Size: uint64(resource.Size),
+				Unit: Unit[resource.Unit],
+			})
+		}
+		storage := &cdpb.Storage{
+			Name:     disk.Name,
+			Level:    Level[disk.Level],
+			Resource: resources,
+		}
+		storages = append(storages, storage)
+	}
+	return &cdpb.Node{
+		Name:    nodeId,
+		Storage: storages,
+	}
+}
+
+var Level = map[string]cdpb.StorageLevel{
+	"ssd": cdpb.StorageLevel_SSD,
+	"hdd": cdpb.StorageLevel_HDD,
+	"nvm": cdpb.StorageLevel_NVM,
+}
+
+var Type = map[string]cdpb.StorageType{
+	"storage": cdpb.StorageType_STORAGE,
+	"limit":   cdpb.StorageType_LIMIT,
+}
+
+var Unit = map[string]cdpb.Unit{
+	"MB": cdpb.Unit_MB,
+	"B":  cdpb.Unit_B,
+	"GB": cdpb.Unit_GB,
+	"KB": cdpb.Unit_KB,
+	"C":  cdpb.Unit_C,
 }

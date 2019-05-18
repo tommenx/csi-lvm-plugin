@@ -10,17 +10,19 @@ import (
 	"github.com/tommenx/csi-lvm-plugin/pkg/config"
 	"github.com/tommenx/csi-lvm-plugin/pkg/isolate"
 	"github.com/tommenx/csi-lvm-plugin/pkg/utils"
+	cdpb "github.com/tommenx/pvproto/pkg/proto/coordinatorpb"
 	ecpb "github.com/tommenx/pvproto/pkg/proto/executorpb"
 	"google.golang.org/grpc"
 )
 
 type Executor struct {
 	client *resource.CoreClient
+	coord  cdpb.CoordinatorClient
 }
 
 type server struct{}
 
-func New(etcds []config.Etcd) *Executor {
+func New(etcds []config.Etcd, cd config.Coordinator) *Executor {
 	strs := []string{}
 	for _, v := range etcds {
 		strs = append(strs, fmt.Sprintf("%s:%s", v.Ip, v.Port))
@@ -30,7 +32,16 @@ func New(etcds []config.Etcd) *Executor {
 		glog.Errorf("create resource client error,err=%v", err)
 		panic(err)
 	}
-	return &Executor{client: client}
+	conn, err := grpc.Dial(fmt.Sprintf("%s:%s", cd.Ip, cd.Port), grpc.WithInsecure())
+	if err != nil {
+		glog.Errorf("create grpc client error,err=%v", err)
+		panic(err)
+	}
+	coordinatorClient := cdpb.NewCoordinatorClient(conn)
+	return &Executor{
+		client: client,
+		coord:  coordinatorClient,
+	}
 }
 
 func (s *server) PutIsolation(ctx context.Context, req *ecpb.PutIsolationRequest) (*ecpb.PutIsolationResponse, error) {
@@ -75,6 +86,24 @@ func (s *Executor) Resister(l *config.Local, nodeId string) {
 		Address:  fmt.Sprintf("%s:%s", l.Ip, l.Port),
 	}
 	s.client.Executor().Register(exec)
+}
+
+func (s *Executor) ReportStorage(nodeId string, disks []*config.Disk) error {
+	rpcNode := utils.ToRPCNode(nodeId, disks)
+	req := &cdpb.PutNodeResourceRequest{
+		Header: &cdpb.RequestHeader{},
+		Node:   rpcNode,
+	}
+	rsp, err := s.coord.PutNodeResource(context.Background(), req)
+	if err != nil {
+		glog.Errorf("node repoort storage resource error,node=%+v,err=%+v", *rpcNode, err)
+		return err
+	}
+	if rsp.Header.Error.Type != 0 {
+		glog.Errorf("put node resource error,code=%d, msg=%s", rsp.Header.Error.Type, rsp.Header.Error.Message)
+		return fmt.Errorf("put node resource error,code=%d, msg=%s", rsp.Header.Error.Type, rsp.Header.Error.Message)
+	}
+	return nil
 }
 
 func (s *Executor) Run(l *config.Local) {
