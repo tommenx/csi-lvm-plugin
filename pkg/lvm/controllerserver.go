@@ -15,23 +15,13 @@ import (
 
 type controllerServer struct {
 	*csicommon.DefaultControllerServer
-	k8sCache *ConfigCache
 }
 
 var lvmVolumes = make(map[string]*lvmVolume)
 
-func transVolumes2Allocation() AllocationsLVM {
-	allocation := AllocationsLVM{}
-	for _, v := range lvmVolumes {
-		allocation.Allocation = append(allocation.Allocation, *v)
-	}
-	return allocation
-}
-
-func NewControllerServer(d *csicommon.CSIDriver, cache *ConfigCache) csi.ControllerServer {
+func NewControllerServer(d *csicommon.CSIDriver) csi.ControllerServer {
 	c := &controllerServer{
 		DefaultControllerServer: csicommon.NewDefaultControllerServer(d),
-		k8sCache:                cache,
 	}
 	return c
 }
@@ -98,23 +88,9 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		lvmVol.Maj = maj
 		lvmVol.Min = min
 	}
-	setBps(lvmVol)
 	// add to lvmvolume slice
 	lvmVolumes[lvmVol.VolID] = lvmVol
 
-	node, _ := GetNodeInfo()
-	err = cs.k8sCache.Update(node)
-	if err != nil {
-		glog.Errorf("ControllerServer: can't update configmap of node")
-	}
-	allocation := transVolumes2Allocation()
-	for _, v := range allocation.Allocation {
-		glog.V(4).Infof("%v", v)
-	}
-	err = cs.k8sCache.Update(allocation)
-	if err != nil {
-		glog.Errorf("ControllerServer: can't update configmap of allocation")
-	}
 	return &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
 			VolumeId:      lvmVol.VolID,
@@ -145,18 +121,6 @@ func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 	}
 	// remove from the map
 	delete(lvmVolumes, req.GetVolumeId())
-	// update configmap
-	node, _ := GetNodeInfo()
-	err = cs.k8sCache.Update(node)
-	if err != nil {
-		glog.Errorf("ControllerServer: can't update configmap")
-	}
-	allocation := transVolumes2Allocation()
-	err = cs.k8sCache.Update(allocation)
-	if err != nil {
-		glog.Errorf("ControllerServer: can't update configmap of allocation")
-	}
-	// return result
 	return &csi.DeleteVolumeResponse{}, nil
 }
 func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *csi.ControllerPublishVolumeRequest) (*csi.ControllerPublishVolumeResponse, error) {

@@ -12,7 +12,7 @@ const (
 	CSIVersion   = "v1.0.0"
 )
 
-type lvm struct {
+type lvmDriver struct {
 	driver           *csicommon.CSIDriver
 	endpoint         string
 	idServer         csi.IdentityServer
@@ -22,37 +22,35 @@ type lvm struct {
 	cscap            []*csi.ControllerServiceCapability
 }
 
-func NewDriver(nodeID, endpoint string, cache *ConfigCache) *lvm {
-	tmplvm := &lvm{}
-	tmplvm.endpoint = endpoint
+func NewDriver(nodeID, endpoint string) *lvmDriver {
+	driver := &lvmDriver{}
+	driver.endpoint = endpoint
 	if nodeID == "" {
 		nodeID = "zx"
 		glog.V(4).Infof("use default nodeID: %s", nodeID)
 	}
 	csiDriver := csicommon.NewCSIDriver(DriverName, CSIVersion, nodeID)
-	tmplvm.driver = csiDriver
-	tmplvm.driver.AddControllerServiceCapabilities([]csi.ControllerServiceCapability_RPC_Type{
+	driver.driver = csiDriver
+	driver.driver.AddControllerServiceCapabilities([]csi.ControllerServiceCapability_RPC_Type{
 		csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
 		csi.ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME,
 	})
-	tmplvm.driver.AddVolumeCapabilityAccessModes([]csi.VolumeCapability_AccessMode_Mode{csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER})
+	driver.driver.AddVolumeCapabilityAccessModes([]csi.VolumeCapability_AccessMode_Mode{csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER})
 
-	// TODO
-	// create GRPC SERVER
-	tmplvm.idServer = csicommon.NewDefaultIdentityServer(tmplvm.driver)
-	tmplvm.controllerServer = NewControllerServer(tmplvm.driver, cache)
-	tmpns, err := NewNodeServer(tmplvm.driver, false)
+	driver.idServer = csicommon.NewDefaultIdentityServer(driver.driver)
+	driver.controllerServer = NewControllerServer(driver.driver)
+	nodeServer, err := NewNodeServer(driver.driver, false)
 	if err != nil {
 		glog.Errorf("lvm can't start node server,err %v \n", err)
 	}
-	tmplvm.nodeServer = tmpns
+	driver.nodeServer = nodeServer
 
-	return tmplvm
+	return driver
 }
 
-func (lvm *lvm) Run() {
+func (d *lvmDriver) Run() {
 	glog.V(4).Infof("Starting csi-plugin Driver: %v version: %v", DriverName, CSIVersion)
 	server := csicommon.NewNonBlockingGRPCServer()
-	server.Start(lvm.endpoint, lvm.idServer, lvm.controllerServer, lvm.nodeServer)
+	server.Start(d.endpoint, d.idServer, d.controllerServer, d.nodeServer)
 	server.Wait()
 }
