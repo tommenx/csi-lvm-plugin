@@ -11,6 +11,7 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/golang/glog"
 	csicommon "github.com/kubernetes-csi/drivers/pkg/csi-common"
+	"github.com/tommenx/csi-lvm-plugin/pkg/server"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/kubernetes/pkg/util/mount"
@@ -20,10 +21,11 @@ import (
 
 type nodeServer struct {
 	*csicommon.DefaultNodeServer
-	mounter mount.Interface
+	mounter  mount.Interface
+	executor *server.Executor
 }
 
-func NewNodeServer(d *csicommon.CSIDriver, containerized bool) (*nodeServer, error) {
+func NewNodeServer(d *csicommon.CSIDriver, containerized bool, executor *server.Executor) (*nodeServer, error) {
 	mounter := mount.New("")
 	if containerized {
 		ne, err := nsenter.NewNsenter(nsenter.DefaultHostRootFsPath, k8sexec.New())
@@ -35,6 +37,7 @@ func NewNodeServer(d *csicommon.CSIDriver, containerized bool) (*nodeServer, err
 	return &nodeServer{
 		DefaultNodeServer: csicommon.NewDefaultNodeServer(d),
 		mounter:           mounter,
+		executor:          executor,
 	}, nil
 }
 
@@ -74,11 +77,11 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	// check if it is mounted
-	notMnt, err := ns.mounter.IsLikelyNotMountPoint(targetPath)
+	mounted, err := isMounted(targetPath)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
-	if !notMnt {
+	if mounted {
 		glog.Errorf("NodePulishVolume: %s is already mounted", targetPath)
 	}
 
@@ -98,6 +101,18 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	glog.V(4).Infof("NodePublishVolume: Mount Successful: target %v", targetPath)
+	// report pv info to coordinator
+	volumeId := req.VolumeId
+	vol, _ := lvmVolumes[volumeId]
+	retry := true
+	err = ns.executor.ReportPVInfo(vol.VolName, vol.LvmName, vol.VolumeGroup, vol.Maj, vol.Min, vol.DevicePath, vol.VolID)
+	if retry && err != nil {
+		err = ns.executor.ReportPVInfo(vol.VolName, vol.LvmName, vol.VolumeGroup, vol.Maj, vol.Min, vol.DevicePath, vol.VolID)
+		retry = false
+	}
+	if err != nil {
+		glog.Errorf("report pv error,err=%v, vol=%v", err, vol)
+	}
 	return &csi.NodePublishVolumeResponse{}, nil
 }
 
@@ -113,16 +128,6 @@ func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 		glog.V(4).Infof("NodeUnpublishVolume: folder %s dosen't exist", targetPath)
 		return &csi.NodeUnpublishVolumeResponse{}, nil
 	}
-	// check the mount point
-	// node publish volume use bind so it can't be detected by the function IsLikelyNotMountPoint
-	// notMnt, err := ns.mounter.IsLikelyNotMountPoint(targetPath)
-	// if err != nil {
-	// 	return nil, status.Error(codes.Internal, err.Error())
-	// }
-	// if notMnt {
-	// 	glog.Errorf("NodeUnpublishVolume: targetpath:%s not mount volume", targetPath)
-	// 	return nil, status.Error(codes.Internal, "NodeUnpublishVolume: target path is not a mount point")
-	// }
 	mnt, err := isMounted(targetPath)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "NodeUnpublishVolume: can't find mount path")
@@ -183,6 +188,7 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 	options := []string{}
 	deviceMouter := &mount.SafeFormatAndMount{Interface: ns.mounter, Exec: mount.NewOsExec()}
 	if err := deviceMouter.FormatAndMount(devicePath, targetPath, fsType, options); err != nil {
+		glog.Errorf("node stage volume error,err=%v", err)
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	return &csi.NodeStageVolumeResponse{}, nil

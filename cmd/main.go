@@ -57,10 +57,15 @@ func main() {
 	flag.Parse()
 	drivername := "lvmplugin.csi.alibabacloud.com"
 	config.Init(configPath)
-	executor := server.New(config.GetEtcds())
-
+	executor := server.New(config.GetEtcds(), config.GetCoordinator())
+	// 向etcd中注册自己的服务
+	go executor.Resister(config.GetLocal(), nodeId)
+	// 一旦启动先向server端报告本机的存储的信息
+	executor.ReportStorage(nodeId, config.GetDisks())
+	// 启动一个协程，开始监听coordinator发来的限速的命令
+	go executor.Run(config.GetLocal())
 	glog.V(4).Infoln("CSI Driver: ", drivername, nodeId, endpoint)
-	driver := lvm.NewDriver(nodeId, endpoint)
+	driver := lvm.NewDriver(nodeId, endpoint, executor)
 	driver.Run()
 	os.Exit(0)
 }

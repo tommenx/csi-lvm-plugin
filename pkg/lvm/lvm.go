@@ -4,6 +4,7 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/golang/glog"
 	csicommon "github.com/kubernetes-csi/drivers/pkg/csi-common"
+	"github.com/tommenx/csi-lvm-plugin/pkg/server"
 )
 
 const (
@@ -22,7 +23,7 @@ type lvmDriver struct {
 	cscap            []*csi.ControllerServiceCapability
 }
 
-func NewDriver(nodeID, endpoint string) *lvmDriver {
+func NewDriver(nodeID, endpoint string, executor *server.Executor) *lvmDriver {
 	driver := &lvmDriver{}
 	driver.endpoint = endpoint
 	if nodeID == "" {
@@ -39,7 +40,7 @@ func NewDriver(nodeID, endpoint string) *lvmDriver {
 
 	driver.idServer = csicommon.NewDefaultIdentityServer(driver.driver)
 	driver.controllerServer = NewControllerServer(driver.driver)
-	nodeServer, err := NewNodeServer(driver.driver, false)
+	nodeServer, err := NewNodeServer(driver.driver, false, executor)
 	if err != nil {
 		glog.Errorf("lvm can't start node server,err %v \n", err)
 	}

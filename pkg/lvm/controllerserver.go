@@ -40,18 +40,13 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		glog.Errorf("CreateVolume: Volume Capabilities cannot be empty")
 		return nil, status.Error(codes.InvalidArgument, "Volume Capabilities cannot be empty")
 	}
-
+	// 获取storeage class中的vg信息
 	if _, ok := req.GetParameters()["vg"]; !ok {
 		glog.Errorf("CreateVolume: error VolumeGroup from input")
 		return nil, status.Error(codes.InvalidArgument, "CreateVolume: error VolumeGroup from input")
 	}
 	lvmVol := &lvmVolume{}
-	// if bps is null , it is set to nil
-	if bps, ok := req.GetParameters()["bps"]; ok {
-		lvmVol.Bps = bps
-	} else {
-		lvmVol.Bps = "0"
-	}
+	// PV的名称
 	lvmVol.VolName = req.Name
 	if req.GetCapacityRange() != nil {
 		lvmVol.VolSize = int64(req.GetCapacityRange().GetRequiredBytes())
@@ -62,7 +57,6 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	vol, _ := getLVMVolumeByName(req.Name)
 	if vol != nil {
 		if vol.VolSize != lvmVol.VolSize {
-			// glog.V(4).Infof("CreateVolume: exist disk %s size is different with requested for disk: exist size: %s, request size: %s", req.GetName(), vol.VolSize, lvmVol.VolSize)
 			return nil, status.Errorf(codes.Internal, "disk %s size is different with requested for disk", req.GetName())
 		} else {
 			tmpVol := &csi.Volume{
@@ -148,11 +142,11 @@ func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *cs
 	lvm.VolumeGroup = params["vg"]
 	lvm.Maj = params["maj"]
 	lvm.Min = params["min"]
-	if len(params["bps"]) == 0 {
-		lvm.Bps = "0"
-	} else {
-		lvm.Bps = params["bps"]
-	}
+	// if len(params["bps"]) == 0 {
+	// 	lvm.Bps = "0"
+	// } else {
+	// 	lvm.Bps = params["bps"]
+	// }
 	lvm.LvmName = volumeId
 	lvm.VolID = volumeId
 	lvm.DevicePath = fmt.Sprintf("/dev/%s/%s", lvm.VolumeGroup, lvm.LvmName)

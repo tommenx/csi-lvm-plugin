@@ -80,7 +80,7 @@ func (s *server) PutIsolation(ctx context.Context, req *ecpb.PutIsolationRequest
 }
 
 // 是阻塞型的因此运行的时候需要开启一个协程
-func (s *Executor) Resister(l *config.Local, nodeId string) {
+func (s *Executor) Resister(l config.Local, nodeId string) {
 	exec := &resource.Executor{
 		Hostname: nodeId,
 		Address:  fmt.Sprintf("%s:%s", l.Ip, l.Port),
@@ -88,7 +88,7 @@ func (s *Executor) Resister(l *config.Local, nodeId string) {
 	s.client.Executor().Register(exec)
 }
 
-func (s *Executor) ReportStorage(nodeId string, disks []*config.Disk) error {
+func (s *Executor) ReportStorage(nodeId string, disks []config.Disk) error {
 	rpcNode := utils.ToRPCNode(nodeId, disks)
 	req := &cdpb.PutNodeResourceRequest{
 		Header: &cdpb.RequestHeader{},
@@ -106,7 +106,30 @@ func (s *Executor) ReportStorage(nodeId string, disks []*config.Disk) error {
 	return nil
 }
 
-func (s *Executor) Run(l *config.Local) {
+func (s *Executor) ReportPVInfo(pv, lv, vg, maj, min, path, uuid string) error {
+	req := &cdpb.PutPVRequest{}
+	req.Name = pv
+	req.Device = &cdpb.Device{
+		Name: lv,
+		Maj:  maj,
+		Min:  min,
+		Id:   uuid,
+		Path: path,
+		Vg:   vg,
+	}
+	rsp, err := s.coord.PutPV(context.Background(), req)
+	if err != nil {
+		glog.Errorf("put pv error, err=%v", err)
+		return err
+	}
+	if rsp.Header.Error.Type != cdpb.ErrorType_OK {
+		glog.Errorf("server return error,msg=%v", rsp.Header.Error.Message)
+		return fmt.Errorf("server error,msg=%v", rsp.Header.Error.Message)
+	}
+	return nil
+}
+
+func (s *Executor) Run(l config.Local) {
 	lst, err := net.Listen("tcp", fmt.Sprintf(":%s", l.Port))
 	if err != nil {
 		panic(err)

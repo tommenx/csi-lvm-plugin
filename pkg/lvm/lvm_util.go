@@ -17,16 +17,15 @@ const (
 
 // using auto lvm name
 type lvmVolume struct {
-	VolName     string `json:"vol_name"`
-	LvmName     string `json:"lvm_name"`
-	VolID       string `json:"vol_id"`
-	DevicePath  string `json:"device_path"`
-	MapperPath  string `json:"mapper_path"`
-	VolumeGroup string `json:"volume_group"`
-	Maj         string `json:"maj"`
-	Min         string `json:"min"`
-	Bps         string `json:"bps"`
-	VolSize     int64  `json:"volume_size"`
+	VolName     string `json:"vol_name"`     //PV的名字
+	LvmName     string `json:"lvm_name"`     //逻辑卷的名字
+	VolID       string `json:"vol_id"`       //生成的uuid
+	DevicePath  string `json:"device_path"`  //设备的地址信息
+	MapperPath  string `json:"mapper_path"`  // device mapper映射的信息
+	VolumeGroup string `json:"volume_group"` //卷组的名称
+	Maj         string `json:"maj"`          //主设备号
+	Min         string `json:"min"`          //副设备号
+	VolSize     int64  `json:"volume_size"`  //大小，以KB为单位
 }
 
 type AllocationsLVM struct {
@@ -167,25 +166,25 @@ func getDeviceNum(lvm *lvmVolume) (bool, string, string) {
 	return true, strs[0], strs[1]
 }
 
-func setBps(lvm *lvmVolume) error {
-	cgpath := fmt.Sprintf("/sys/fs/cgroup/blkio/csi-lvm/%s/", lvm.VolName)
-	args1 := []string{"-p", cgpath}
-	_, err := execCommand("mkdir", args1)
-	if err != nil {
-		return err
-	}
-	// set the bps
-	str := fmt.Sprintf(`"%s:%s %s"`, lvm.Maj, lvm.Min, lvm.Bps)
-	writePath := cgpath + "blkio.throttle.write_bps_device"
-	com := fmt.Sprintf(`echo "%s" > %s`, str, writePath)
-	cmd := exec.Command("bash", "-c", com)
-	fmt.Println("command is", com)
-	cmd.Start()
-	err = cmd.Wait()
-	if err != nil {
-		fmt.Printf("error:%v", err)
-		glog.V(4).Infof("SET BPS echo error , %v", err)
-		return err
-	}
-	return nil
-}
+// func setBps(lvm *lvmVolume) error {
+// 	cgpath := fmt.Sprintf("/sys/fs/cgroup/blkio/csi-lvm/%s/", lvm.VolName)
+// 	args1 := []string{"-p", cgpath}
+// 	_, err := execCommand("mkdir", args1)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	// set the bps
+// 	str := fmt.Sprintf(`"%s:%s %s"`, lvm.Maj, lvm.Min, lvm.Bps)
+// 	writePath := cgpath + "blkio.throttle.write_bps_device"
+// 	com := fmt.Sprintf(`echo "%s" > %s`, str, writePath)
+// 	cmd := exec.Command("bash", "-c", com)
+// 	fmt.Println("command is", com)
+// 	cmd.Start()
+// 	err = cmd.Wait()
+// 	if err != nil {
+// 		fmt.Printf("error:%v", err)
+// 		glog.V(4).Infof("SET BPS echo error , %v", err)
+// 		return err
+// 	}
+// 	return nil
+// }

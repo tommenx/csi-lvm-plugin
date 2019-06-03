@@ -67,3 +67,7 @@ func GetEtcds() []Etcd {
 func GetLocal() Local {
 	return c.Local
 }
+
+func GetCoordinator() Coordinator {
+	return c.Coordinator
+}

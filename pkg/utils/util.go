@@ -23,28 +23,7 @@ func ToCount(num int64, unit ecpb.Unit) int64 {
 	return 0
 }
 
-// func ToRPCNode(node *resource.Node) *cdpb.Node {
-// 	rspNode := &cdpb.Node{Name: node.Name}
-// 	for _, s := range node.Storages {
-// 		rspStorage := &cdpb.Storage{
-// 			Name:  s.Name,
-// 			Level: resource.ReLeval[s.Level],
-// 		}
-// 		for _, r := range s.Resources {
-// 			rspResouce := &cdpb.Resource{
-// 				Type: resource.ReType[r.Type],
-// 				Kind: r.Kind,
-// 				Size: r.Size,
-// 				Unit: resource.ReUnit[r.Unit],
-// 			}
-// 			rspStorage.Resource = append(rspStorage.Resource, rspResouce)
-// 		}
-// 		rspNode.Storage = append(rspNode.Storage, rspStorage)
-// 	}
-// 	return rspNode
-// }
-
-func ToRPCNode(nodeId string, disks []*config.Disk) *cdpb.Node {
+func ToRPCNode(nodeId string, disks []config.Disk) *cdpb.Node {
 	storages := []*cdpb.Storage{}
 	for _, disk := range disks {
 		resources := []*cdpb.Resource{}
